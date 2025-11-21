@@ -19,7 +19,6 @@ storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
 
-# ---------- Состояния анкеты ----------
 class PointForm(StatesGroup):
     location = State()
     address = State()
@@ -33,7 +32,6 @@ class PointForm(StatesGroup):
     logistics = State()
 
 
-# ---------- /start ----------
 @dp.message_handler(commands=["start", "help"])
 async def cmd_start(message: types.Message):
     text = (
@@ -46,7 +44,6 @@ async def cmd_start(message: types.Message):
     await message.answer(text)
 
 
-# ---------- /newpoint ----------
 @dp.message_handler(commands=["newpoint"])
 async def cmd_newpoint(message: types.Message, state: FSMContext):
     await PointForm.location.set()
@@ -56,7 +53,6 @@ async def cmd_newpoint(message: types.Message, state: FSMContext):
     )
 
 
-# ---------- Шаг 1: Геолокация ----------
 @dp.message_handler(content_types=["location"], state=PointForm.location)
 async def process_location(message: types.Message, state: FSMContext):
     await state.update_data(
@@ -72,7 +68,6 @@ async def process_location_wrong(message: types.Message, state: FSMContext):
     await message.answer("Пожалуйста, отправьте именно <b>геолокацию</b>, а не текст.")
 
 
-# ---------- Шаг 2: Адрес ----------
 @dp.message_handler(state=PointForm.address)
 async def process_address(message: types.Message, state: FSMContext):
     await state.update_data(address=message.text.strip())
@@ -80,7 +75,6 @@ async def process_address(message: types.Message, state: FSMContext):
     await message.answer("3️⃣ Введите ФИО владельца.")
 
 
-# ---------- Шаг 3: ФИО владельца ----------
 @dp.message_handler(state=PointForm.owner_name)
 async def process_owner_name(message: types.Message, state: FSMContext):
     await state.update_data(owner_name=message.text.strip())
@@ -88,7 +82,6 @@ async def process_owner_name(message: types.Message, state: FSMContext):
     await message.answer("4️⃣ Телефон владельца (например: +99890xxxxxxx).")
 
 
-# ---------- Шаг 4: Телефон владельца ----------
 @dp.message_handler(state=PointForm.owner_phone)
 async def process_owner_phone(message: types.Message, state: FSMContext):
     await state.update_data(owner_phone=message.text.strip())
@@ -99,7 +92,6 @@ async def process_owner_phone(message: types.Message, state: FSMContext):
     )
 
 
-# ---------- Шаг 5: Телефон продавца ----------
 @dp.message_handler(state=PointForm.seller_phone)
 async def process_seller_phone(message: types.Message, state: FSMContext):
     await state.update_data(seller_phone=message.text.strip())
@@ -111,7 +103,6 @@ async def process_seller_phone(message: types.Message, state: FSMContext):
     await message.answer("6️⃣ Выберите формат точки:", reply_markup=keyboard)
 
 
-# ---------- Шаг 6: Формат точки ----------
 @dp.message_handler(state=PointForm.point_format)
 async def process_point_format(message: types.Message, state: FSMContext):
     fmt = message.text.strip()
@@ -129,7 +120,6 @@ async def process_point_format(message: types.Message, state: FSMContext):
     )
 
 
-# ---------- Шаг 7: Ассортимент ----------
 @dp.message_handler(state=PointForm.assortment)
 async def process_assortment(message: types.Message, state: FSMContext):
     await state.update_data(assortment=message.text.strip())
@@ -137,7 +127,6 @@ async def process_assortment(message: types.Message, state: FSMContext):
     await message.answer("8️⃣ У кого точка сейчас закупается? Напишите 1–2 основных поставщика.")
 
 
-# ---------- Шаг 8: Закупки ----------
 @dp.message_handler(state=PointForm.suppliers)
 async def process_suppliers(message: types.Message, state: FSMContext):
     await state.update_data(suppliers=message.text.strip())
@@ -145,7 +134,6 @@ async def process_suppliers(message: types.Message, state: FSMContext):
     await message.answer("9️⃣ Какие бренды стоят на полке? (через запятую).")
 
 
-# ---------- Шаг 9: Бренды ----------
 @dp.message_handler(state=PointForm.brands)
 async def process_brands(message: types.Message, state: FSMContext):
     await state.update_data(brands=message.text.strip())
@@ -161,7 +149,6 @@ async def process_brands(message: types.Message, state: FSMContext):
     )
 
 
-# ---------- Шаг 10: Логистика + итог ----------
 @dp.message_handler(state=PointForm.logistics)
 async def process_logistics(message: types.Message, state: FSMContext):
     await state.update_data(logistics=message.text.strip())
@@ -170,18 +157,22 @@ async def process_logistics(message: types.Message, state: FSMContext):
     latitude = data.get("latitude")
     longitude = data.get("longitude")
 
-    # Отправляем локацию обратно
+    maps_url = None
     if latitude and longitude:
         await message.answer_location(latitude=latitude, longitude=longitude)
         maps_url = f"https://maps.google.com/?q={latitude},{longitude}"
-    else:
-        maps_url = None
 
     summary = (
         "<b>Новая торговая точка:</b>\n\n"
         f"📍 Геолокация: {latitude}, {longitude}\n"
-        + (f"🌍 <a href=\"{maps_url}\">Открыть в Google Maps</a>\n\n" if maps_url else "\n")
-        + f"🏠 Адрес: {data.get('address')}\n\n"
+    )
+    if maps_url:
+        summary += f"🌍 <a href=\"{maps_url}\">Открыть в Google Maps</a>\n\n"
+    else:
+        summary += "\n"
+
+    summary += (
+        f"🏠 Адрес: {data.get('address')}\n\n"
         f"👤 Владелец: {data.get('owner_name')}\n"
         f"📞 Тел. владельца: {data.get('owner_phone')}\n"
         f"📞 Тел. продавца: {data.get('seller_phone')}\n\n"
@@ -192,19 +183,17 @@ async def process_logistics(message: types.Message, state: FSMContext):
         f"🚚 Логистика (подъезд): {data.get('logistics')}\n"
     )
 
-    await message.answer("✅ Точка сохранена (пока в виде сообщения).")
+    await message.answer("✅ Точка сохранена (как сообщение).")
     await message.answer(summary, reply_markup=types.ReplyKeyboardRemove())
 
     await state.finish()
 
 
-# ---------- /cancel ----------
 @dp.message_handler(commands=["cancel"], state="*")
 async def cancel(message: types.Message, state: FSMContext):
     await state.finish()
     await message.answer("Анкету отменили.", reply_markup=types.ReplyKeyboardRemove())
 
 
-# ---------- Запуск ----------
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
